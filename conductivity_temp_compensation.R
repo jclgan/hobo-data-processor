@@ -2,12 +2,13 @@
 #' 
 
 conduct_temp_comp <- function(input_data,
+                              comp_file,
                               var_conduct_uScm = "conduct_uScm_U24_adj",
                               var_watertemp_C = "watertemp_C_U24_adj") {
   
   ## Using non-linear Temperature Correction Factors
   ## From Mettler-Toledo Conductivity Guide
-  tcomp <- as.data.frame(read_csv(here("Code", "functions", "tempcomp27888.csv")))
+  tcomp <- as.data.frame(read_csv(comp_file))
   rownames(tcomp) <- tcomp[,1]
   tcomp <- tcomp %>% 
     pivot_longer(cols = `0`:`0.9`,
