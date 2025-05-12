@@ -28,6 +28,13 @@ bind_hobo_files <- function(raw_path, out_path, meta_file, logger_type) {
     # Extract the logger serial number from the third column header
     data$sn <- str_extract(names(data)[3], "(?<=SEN\\.S\\.N\\.\\.)\\d+")
     
+    # For U24 conductivity loggers
+    # If the data have both Low Range and Full Range columns, drop the Full Range column
+    if (any(grepl("Low.Range", names(data))) && any(grepl("Full.Range", names(data)))) {
+      data <- data %>% 
+        select(-matches("Full.Range"))
+    }
+    
     data <- data %>% 
       select(2:4, sn)
     
@@ -59,10 +66,20 @@ bind_hobo_files <- function(raw_path, out_path, meta_file, logger_type) {
     }
       # warning('NAs produced in timestamp. Make sure the timestamp column in all csvs are formatted as mm/dd/yyyy hh:mm:ss')
   
+    logger_start <- min(data$timestamp, na.rm = TRUE)
+    logger_end <- max(data$timestamp, na.rm = TRUE)
+    current_sn <- unique(data$sn)
+    last_data_time <- max(data$timestamp)
+    
     # Create unique rows of logger-site pairs
     logger_site <- metadat %>% 
-      filter(sn == data$sn[1]) %>% 
+      filter(sn == current_sn, last_data_time >= timestamp_deploy) %>% 
       distinct(site_station_code, sn, .keep_all = TRUE)
+    
+    # If multiple rows match, keep the one with the latest deploy time
+    logger_site <- logger_site %>%
+      arrange(desc(timestamp_deploy)) %>%
+      slice(1)
     
     # Join the site & logger metadata
     data <- data %>% 
@@ -98,8 +115,15 @@ bind_hobo_files <- function(raw_path, out_path, meta_file, logger_type) {
   # Write the data to a csv
   current_date <- Sys.Date()
   site_type <- all_data$site_type[1]
-  year <- year(all_data$timestamp[1])
   param <- data$parameter[1]
+  
+  years <- sort(unique(year(all_data$timestamp)))
+  if (length(years) == 1) {
+    year <- as.character(years)
+  } else {
+    year <- paste0(min(years), "-", max(years))
+  }
+  
   filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_RAW", ".csv")
   
   write_csv(all_data, file.path(out_path, filename))
