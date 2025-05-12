@@ -15,14 +15,28 @@
 # baro_file <- here("Data", "barometric-pressure", "2024", "intermediate", "DM_ST_2024_barometric_all_QAQC.csv")
 # site_file <- here("Data", "site-attribute", "Deadman_sites_20241112.csv")
 
-join_nearest_baro <- function(input_data, baro_file, site_file) {
+join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_airpress_kPa = "airpress_kPa_U20", var_airtemp_C = "airtemp_C_U20") {
   
   library(tidyverse)
   library(geosphere)
   
-  
   baro_dat <- suppressMessages(read_csv(baro_file))
-  sites <- suppressMessages(read_csv(site_file)) %>% 
+  
+  # user input baro data names to local names
+  names(baro_dat)[names(baro_dat) == var_airpress_kPa ] <- "airpress_kPa"
+  names(baro_dat)[names(baro_dat) == var_airtemp_C ] <- "airtemp_C"
+  baro_dat$site_station_code <- as.character(baro_dat$site_station_code)
+  
+  # create QAQC columns if missing
+  if (!("baro_qaqc_code" %in% names(baro_dat)) && !("baro_qaqc_note" %in% names(baro_dat))) {
+    baro_dat$baro_qaqc_code <- NA
+    baro_dat$baro_qaqc_note <- NA
+  }
+  
+  sites <- suppressMessages(read_csv(site_file))
+  if ("latitude" %in% names(sites)) names(sites)[names(sites) == "latitude"] <- "lat"
+  if ("longitude" %in% names(sites)) names(sites)[names(sites) == "longitude"] <- "lon"
+  sites <- sites %>% 
     select(site_station_code, lat, lon)
   
   # If measurements are taken more frequently than every hour, keep only the measurements taken at the top of the hour
@@ -106,15 +120,15 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
 
   # For each pair of sites
   for(i in 1:nrow(baro_site_pairs)) {
-    # Get the airpress_kPa_U20_adj values for the two sites
+    # Get the airpress_kPa values for the two sites
     site1_pdata <- baro_dat %>% 
       filter(site_station_code == baro_site_pairs$Var1[i]) %>% 
       select(timestamp,
-             airpress.site1 = airpress_kPa_U20_adj)
+             airpress.site1 = airpress_kPa)
     site2_pdata <- baro_dat %>% 
       filter(site_station_code == baro_site_pairs$Var2[i]) %>% 
       select(timestamp,
-             airpress.site2 = airpress_kPa_U20_adj)
+             airpress.site2 = airpress_kPa)
     
     # Join the data for the two sites on timestamp
     joined_pdata <- inner_join(site1_pdata, site2_pdata, by = "timestamp")
@@ -142,11 +156,11 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
     site1_tdata <- baro_dat %>% 
       filter(site_station_code == baro_site_pairs$Var1[i]) %>% 
       select(timestamp,
-             airtemp.site1 = airtemp_C_U20_adj)
+             airtemp.site1 = airtemp_C)
     site2_tdata <- baro_dat %>% 
       filter(site_station_code == baro_site_pairs$Var2[i]) %>% 
       select(timestamp,
-             airtemp.site2 = airtemp_C_U20_adj)
+             airtemp.site2 = airtemp_C)
     
     # Join the data for the two sites on timestamp
     joined_tdata <- inner_join(site1_tdata, site2_tdata, by = "timestamp")
@@ -170,14 +184,14 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
   dat_with_baro <- left_join(dat, select(baro_dat,
                                          timestamp,
                                          site_station_code,
-                                         primary_baro_press = airpress_kPa_U20_adj,
-                                         primary_baro_temp = airtemp_C_U20_adj),
+                                         primary_baro_press = airpress_kPa,
+                                         primary_baro_temp = airtemp_C),
                              by = c("timestamp", "primary_baro" = "site_station_code")) %>% 
     left_join(select(baro_dat,
                      timestamp,
                      site_station_code,
-                     nearest_baro_press = airpress_kPa_U20_adj,
-                     nearest_baro_temp = airtemp_C_U20_adj), 
+                     nearest_baro_press = airpress_kPa,
+                     nearest_baro_temp = airtemp_C), 
               by = c("timestamp", "nearest_baro" = "site_station_code"))
   
   # Create an extrapolated baro pressure time series for the primary baro data
@@ -185,7 +199,7 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
   
   print("Adding extrapolated data to input file.")
   
-  dat_with_baro$airpress_kPa_U20_ext <- NA
+  dat_with_baro$airpress_kPa_ext <- NA
   
   for(i in 1:nrow(dat_with_baro)) {
     # Find matching row in pres_coefficients
@@ -193,14 +207,14 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
                            pres_coefficients$site2 == dat_with_baro$nearest_baro[i], ]
     # If there is a matching row
     if(nrow(coef) == 1) {
-      # Calculate airpress_kPa_U20_ext
-      dat_with_baro$airpress_kPa_U20_ext[i] <- coef$intercept + coef$slope * dat_with_baro$nearest_baro_press[i]
+      # Calculate airpress_kPa_ext
+      dat_with_baro$airpress_kPa_ext[i] <- coef$intercept + coef$slope * dat_with_baro$nearest_baro_press[i]
     }
   }
   
   dat_with_baro <- dat_with_baro %>% 
-    mutate(airpress_kPa_U20_adj = ifelse(!is.na(primary_baro_press), primary_baro_press, 
-                                            airpress_kPa_U20_ext))
+    mutate(airpress_kPa_adj = ifelse(!is.na(primary_baro_press), primary_baro_press, 
+                                            airpress_kPa_ext))
   
   # ## Test
   # ext <- baro_dat %>%
@@ -219,7 +233,7 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
   
   # Now do the same thing for temperature 
   
-  dat_with_baro$airtemp_C_U20_ext <- NA
+  dat_with_baro$airtemp_C_ext <- NA
   
   for(i in 1:nrow(dat_with_baro)) {
     # Find matching row in coefficients
@@ -228,12 +242,12 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
     # If there is a matching row
     if(nrow(coef) == 1) {
       # Calculate airtemp_C_U20_ext
-      dat_with_baro$airtemp_C_U20_ext[i] <- coef$intercept + coef$slope * dat_with_baro$nearest_baro_temp[i]
+      dat_with_baro$airtemp_C_ext[i] <- coef$intercept + coef$slope * dat_with_baro$nearest_baro_temp[i]
     }
   }
   
   dat_with_baro <- dat_with_baro %>% 
-    mutate(airtemp_C_U20_adj = ifelse(!is.na(primary_baro_temp), primary_baro_temp, airtemp_C_U20_ext))
+    mutate(airtemp_C_adj = ifelse(!is.na(primary_baro_temp), primary_baro_temp, airtemp_C_ext))
 
   # ## Test
   # ext <- baro_dat %>%
@@ -267,23 +281,36 @@ join_nearest_baro <- function(input_data, baro_file, site_file) {
   # Append QAQC messages
   dat_with_baro_qaqc <- dat_with_baro_qaqc %>% 
     mutate(baro_qaqc_code = ifelse(is.na(primary_baro_press) | is.na(primary_baro_temp), 
-                                   update_qaqc_cols(baro_qaqc_code, "EXTRAPOLATED"),
+                                   update_qaqc_cols(baro_qaqc_code, "ALT_BARO_CORR"),
                                    baro_qaqc_code),
            baro_qaqc_note = ifelse(is.na(primary_baro_press) | is.na(primary_baro_temp), 
                                    update_qaqc_cols(baro_qaqc_note, paste("Extrapolated baro data based on", nearest_baro, "due to missing measurements")),
                                    baro_qaqc_note)
     )
   
+  # rename variables to user input
+  names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airpress_kPa"] <- var_airpress_kPa
+  names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airpress_kPa_adj"] <- paste0(var_airpress_kPa, "_adj")
+  names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airtemp_C"] <- var_airtemp_C
+  names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airtemp_C_adj"] <- paste0(var_airtemp_C, "_adj")
+  
   # # Write the file and return the data frame
-  # site_type <- dat_with_baro_qaqc$site_type[1]
-  # year <- year(dat_with_baro_qaqc$timestamp[1])
-  # param <- dat_with_baro_qaqc$parameter[1]
-  # 
-  # filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_BARO_COMPILED", ".csv")
-  # 
-  # write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
-  # 
-  # print(paste("Writing to csv", filename))
+  site_type <- unique(dat_with_baro_qaqc$site_type)
+  
+  years <- sort(unique(year(dat_with_baro_qaqc$timestamp)))
+  if (length(years) == 1) {
+    year <- as.character(years)
+  } else {
+    year <- paste0(min(years), "-", max(years))
+  }
+  
+  param <- unique(dat_with_baro_qaqc$parameter)
+
+  filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_BARO_COMPILED", ".csv")
+
+  write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
+
+  print(paste("Writing to csv", filename))
   
   return(dat_with_baro_qaqc)
 }
