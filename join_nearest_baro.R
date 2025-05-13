@@ -15,10 +15,15 @@
 # baro_file <- here("Data", "barometric-pressure", "2024", "intermediate", "DM_ST_2024_barometric_all_QAQC.csv")
 # site_file <- here("Data", "site-attribute", "Deadman_sites_20241112.csv")
 
-join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_airpress_kPa = "airpress_kPa_U20", var_airtemp_C = "airtemp_C_U20") {
+join_nearest_baro <- function(input_data, baro_file, site_file, select_station = "all", var_airpress_kPa = "airpress_kPa_U20", var_airtemp_C = "airtemp_C_U20") {
   
   library(tidyverse)
   library(geosphere)
+  
+  # Filter station if specified
+  if(select_station != "all") {
+    input_data <- input_data %>% 
+      filter(site_station_code == select_station) }
   
   baro_dat <- suppressMessages(read_csv(baro_file))
   
@@ -39,12 +44,17 @@ join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_ai
   sites <- sites %>% 
     select(site_station_code, lat, lon)
   
-  # If measurements are taken more frequently than every hour, keep only the measurements taken at the top of the hour
+  # If measurements are taken more frequently than every hour, 
+  # keep only the measurements taken at the top (or closest to) the hour
   dat <- input_data %>% 
-    filter(minute(timestamp) == 0)
-  
-  
-  ## Determine distance between loggers ----
+    mutate(hour = floor_date(timestamp, "hour"),
+           mins = abs(as.numeric(difftime(timestamp, hour, units = "mins")))) %>%
+    group_by(site_station_code, hour) %>%
+    slice_min(mins, with_ties = FALSE) %>%
+    ungroup() %>%
+    mutate(timestamp = hour) %>%
+    select(-hour, -mins)
+
   # Join sites to dat and baro_dat to get lat & long for each site
   dat <- left_join(dat, sites, by = "site_station_code")
   baro_dat <- left_join(baro_dat, sites, by = "site_station_code")
@@ -53,8 +63,8 @@ join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_ai
   dat_sites <- unique(dat$site_station_code)
   baro_sites <- unique(baro_dat$site_station_code)
   
-  print(paste("Processing", dat_sites))
-  
+  ## Determine distance between loggers ----
+
   # Calculate distance between each pair of sites
   distances <- data.frame()
   for(i in dat_sites) {
@@ -85,7 +95,18 @@ join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_ai
   # Add nearest_baro column to dat
   dat$nearest_baro <- NA
   
+  # Initialize variable to track current site
+  current_site <- NA
+  
   for(i in 1:nrow(dat)) {
+    this_site <- dat$site_station_code[i]
+    
+    # Print message only when site changes
+    if (!identical(this_site, current_site)) {
+      cat("\nProcessing", this_site, "\n")
+      current_site <- this_site
+    }
+    
     # Get the distances for the current site
     site_distances <- filter(distances, dat_site == dat$site_station_code[i])
     
@@ -106,6 +127,7 @@ join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_ai
   
   # Close progress bar
   close(pb)
+  
   
   ## Create linear models of each pairing of baro sites ----
   # To determine coefficients for extrapolating pressure & temperature data
@@ -295,22 +317,22 @@ join_nearest_baro <- function(input_data, baro_file, site_file, out_path, var_ai
   names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airtemp_C_adj"] <- paste0(var_airtemp_C, "_adj")
   
   # # Write the file and return the data frame
-  site_type <- unique(dat_with_baro_qaqc$site_type)
-  
-  years <- sort(unique(year(dat_with_baro_qaqc$timestamp)))
-  if (length(years) == 1) {
-    year <- as.character(years)
-  } else {
-    year <- paste0(min(years), "-", max(years))
-  }
-  
-  param <- unique(dat_with_baro_qaqc$parameter)
-
-  filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_BARO_COMPILED", ".csv")
-
-  write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
-
-  print(paste("Writing to csv", filename))
+  # site_type <- unique(dat_with_baro_qaqc$site_type)
+  # 
+  # years <- sort(unique(year(dat_with_baro_qaqc$timestamp)))
+  # if (length(years) == 1) {
+  #   year <- as.character(years)
+  # } else {
+  #   year <- paste0(min(years), "-", max(years))
+  # }
+  # 
+  # param <- unique(dat_with_baro_qaqc$parameter)
+  # 
+  # filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_BARO_COMPILED", ".csv")
+  # 
+  # write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
+  # 
+  # print(paste("Writing to csv", filename))
   
   return(dat_with_baro_qaqc)
 }
