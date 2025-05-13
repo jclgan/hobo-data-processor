@@ -86,6 +86,7 @@ baro_qaqc <- function(input_data,
 #' Change all negative water level values to zero, 
 #' Flag when water pressure and air pressure are equal as potentially dry
 #' Flag water temperatures below 0.3C as potentially in ice, and remove water temperature values below -1C.
+#' Requires visual assessment of the data for ice spikes (e.g., increase in WL/pressure over winter; can be sudden or gradual)
 
 waterlevel_qaqc <- function(input_data, 
                             var_waterlevel_m = "waterlevel_m_U20", 
@@ -589,10 +590,14 @@ dissox_qaqc <- function(input_data,
 conductivity_qaqc <- function(input_data, 
                               plot_only = FALSE,
                               reference_file, 
+                              drop_ref = NA, # specify either a positive integer or a vector c(x, y, etc.)
+                              ref_deploy_offset = 1, # hours to search between deployment and YSI measurement (between 0 and 2)
                               var_conduct_uScm = "conduct_uScm_U24", 
                               var_watertemp_C = "watertemp_C_U24",
-                              var_ref_conduct_uScm = "conductivity_uscm",
-                              var_ref_watertemp_C = "water_temp_C"){
+                              var_airtemp_C = NA,
+                              var_waterlevel_m = NA,
+                              var_ref_conduct_uScm = "cond_uscm_ysi",
+                              var_ref_watertemp_C = "watertemp_C_ysi"){
   # load packages
   require(tidyverse)
   require(fuzzyjoin)
@@ -613,10 +618,15 @@ conductivity_qaqc <- function(input_data,
   names(cdat)[names(cdat) == paste0(var_conduct_uScm, "_adj") ] <- "conduct_uScm_adj"
   names(cdat)[names(cdat) == paste0(var_watertemp_C, "_adj" )] <- "watertemp_C_adj"
   
+  if(!is.na(var_airtemp_C)){
+    names(cdat)[names(cdat) == var_airtemp_C ] <- "airtemp_C"
+  }
+  
   # Perform drift correction and automated QA/QC if you're not just plotting the data
   if(plot_only == FALSE){
     cdat <- cdat %>% 
-      mutate(conduct_uScm_adj = conduct_uScm,
+      mutate(timestamp = round_date(timestamp, unit = "hour"), # round to the nearest hour (same for YSI) so ref_deploy_offset integer represents an hour and not minutes
+             conduct_uScm_adj = conduct_uScm,
              watertemp_C_adj = watertemp_C,
              co_qaqc_note = NA_character_,
              co_qaqc_adj = NA_character_,
@@ -636,12 +646,17 @@ conductivity_qaqc <- function(input_data,
              ref_timestamp = round_date(ref_timestamp, unit = "hour"),
              timestamp = ref_timestamp) %>% 
       filter(site_station_code == site) %>% 
-      filter(ref_timestamp >= (time_range[1] - 60*60) & ref_timestamp <= (time_range[2] + 60*60)) %>%  # 1-hour window between logger timestamps
+      filter(ref_timestamp >= (time_range[1] - 60*120) & ref_timestamp <= (time_range[2] + 60*120)) %>%  # up to 2 hrs between logger timestamps
       select(ref_timestamp,
              timestamp,
              ref_conduct_uScm,
              ref_watertemp_C,
-             ref_spc_uScm = spc_uscm)
+             ref_spc_uScm = spc_uscm_ysi)
+    
+    # drop rows if specified
+    if(!all(is.na(drop_ref))) {
+      ref_dat <- ref_dat[-drop_ref, , drop = FALSE]
+    }
     
     # Join manual YSI measurments to conductivity data frame
     cdat_ref.1 <- left_join(cdat, ref_dat, by = "timestamp")
@@ -654,7 +669,8 @@ conductivity_qaqc <- function(input_data,
     
     cdat_ref.2 <- difference_left_join(cdat, ref_unmatched,
                                        by = c("timestamp" = "ref_timestamp"),
-                                       max_dist = 1) %>% # 1-hour window to join
+                                       # distance_col = "distance",
+                                       max_dist = ref_deploy_offset) %>% 
       filter(!is.na(ref_timestamp))
     
     total_time <- difftime(max(cdat$timestamp), min(cdat$timestamp), units = "hours")
@@ -662,6 +678,18 @@ conductivity_qaqc <- function(input_data,
     cdat_ref <- bind_rows(cdat_ref.2, cdat_ref.1) %>% 
       distinct(timestamp, .keep_all = TRUE) %>% 
       arrange(timestamp)
+    
+    # If there is no initial reference measurement taken at the start of the data frame
+    # Then create a "dummy" reference measurement set to the values of the first logger timestamp
+    # This is used to back-calculate drift assuming that logger calibration is perfect at the start of logging
+    
+    if (is.na(cdat_ref$ref_conduct_uScm[1])) {
+      cdat_ref$ref_conduct_uScm[1] <- cdat_ref$conduct_uScm[1]
+      cdat_ref$ref_watertemp_C[1] <- cdat_ref$watertemp_C[1]
+      cdat_ref$ref_timestamp[1] <- cdat_ref$timestamp[1]
+      
+      warning("No initial YSI reference point found. Estimating drift based on perfect calibration at the start of the logger data file.")
+    }
     
     ## DETERMINE DRIFT CORRECTION FACTOR
     ## Drift is calculated as the % difference between the reference & logger measurement
@@ -693,7 +721,7 @@ conductivity_qaqc <- function(input_data,
       fill(ref_time_intv, .direction = "up") %>% 
       mutate(ref_timestamp2 = ref_timestamp) %>% 
       fill(ref_timestamp2, .direction = "down") %>% 
-      mutate(time_elapsed = as.numeric(timestamp - ref_timestamp2)/3600,
+      mutate(time_elapsed = as.numeric(difftime(timestamp, ref_timestamp2, units = "hours")),
              time_ratio = time_elapsed/ref_time_intv,
              time_ratio = replace_na(time_ratio,0),
              time_ratio = ifelse(is.infinite(time_ratio), 0, time_ratio)) # Replace NAs and infinite values (e.g, caused by dividing by 0) in 'time_ratio'
@@ -735,9 +763,12 @@ conductivity_qaqc <- function(input_data,
     for(i in 1:(length(cdat$timestamp))) {
       if(!is.na(cdat$conduct_uScm[i])) {
         
-        # if conductivity reads less than 50 uS/cm, then flag as dry
-        if(cdat$conduct_uScm[i] < 10) {
-          cdat$co_qaqc_code[i] <- "FLAG_DRY"
+        if(is.na(var_airtemp_C)){
+          # if conductivity reads less than 10 uS/cm, then flag as dry
+          # only applies if there is no air temp column
+          if(cdat$conduct_uScm[i] < 10) {
+            cdat$co_qaqc_code[i] <- "FLAG_DRY"
+          }
         }
         
         # if water temperature is less than 0.3C, then flag as ice
@@ -761,7 +792,31 @@ conductivity_qaqc <- function(input_data,
           cdat$watertemp_C_adj[i] <- 0
         }
       } # end of if data not NA
-    }
+    } # end of additional flags
+    
+    # Flag dry periods using air temperature
+    if(!is.na(var_airtemp_C)){
+      # calc air to water temp diff
+      cdat$air_watertemp_diff <- abs(cdat$airtemp_C - cdat$watertemp_C)
+      
+      # if water temp within 2 degrees of air temp and < 10 uS/cm for 12 consecutive hours:
+      print("Determining dry periods...")
+      counter <- 0
+      threshold <- 12
+      
+      for (i in 1:length(cdat$timestamp)) {
+        if (cdat$air_watertemp_diff[i] <= 2 && cdat$conduct_uScm[i] < 10) {
+          counter <- counter + 1 
+        } else {
+          counter <- 0
+        }
+        
+        if (counter >= threshold) {
+          cdat$co_qaqc_code[(i - threshold):i] <- "FLAG_DRY"
+        }
+      }
+    } # end of air temp dry flag
+
   } # end of plot_only = FALSE
   
   
@@ -769,32 +824,56 @@ conductivity_qaqc <- function(input_data,
   p <- ggplot(cdat, aes(x = timestamp)) +
     geom_line(aes(y = conduct_uScm, colour = "conduct_uScm"), alpha = 0.5)+
     geom_line(aes(y = conduct_uScm_adj, colour = "conduct_uScm_adj"))+
-    geom_point(aes(y = ref_conduct_uScm, colour = "ref_conduct"), alpha = 0.5)+
-    geom_point(data = cdat %>% drop_na(co_qaqc_code) %>% filter(grepl("FLAG", co_qaqc_code)),
-               aes(y = 0, shape = as.factor(co_qaqc_code)),
-               color = "black") +
-    scale_colour_manual(values = c("conduct_uScm" = "#00008B",
-                                   "conduct_uScm_adj" = "#00008B",
-                                   "ref_conduct" = "darkred"))+
-    scale_shape_manual(values = c("FLAG_ICE" = 1,
-                                  "FLAG_DISTURBANCE" = 2,
-                                  "FLAG_DRY" = 4))+
-    labs(title = paste("QAQC for:", site),
-         y = "Conductivity (uS/cm)",
-         x = "Timestamp", 
-         color = "",
-         shape = "") +
+    geom_point(aes(y = ref_conduct_uScm, colour = "ref_conduct"), alpha = 0.5)
+  labs(title = paste("QAQC for:", site),
+       y = "Conductivity (uS/cm)",
+       x = "Timestamp", 
+       color = "",
+       shape = "") +
     theme_classic()
   
-  ggplot(cdat, aes(x = timestamp, y = ))
+  # Plot if data contains water level
+  # Use the QAQC codes from the water level data instead of the conductivity data
+  if (!is.na(var_waterlevel_m)){
+    
+    names(cdat)[names(cdat) == var_waterlevel_m ] <- "waterlevel_m"
+    
+    p <- p +
+      geom_line(data = cdat, aes(y = waterlevel_m*100, colour = "waterlevel_m"), linewidth = 0.3) +
+      geom_point(data = cdat %>% drop_na(wl_qaqc_code) %>% filter(grepl("FLAG|LOGGER", wl_qaqc_code)),
+                 aes(y = 0, shape = as.factor(wl_qaqc_code)),
+                 color = "black") +
+      scale_colour_manual(values = c("conduct_uScm" = "#00008B",
+                                     "conduct_uScm_adj" = "#00008B",
+                                     "ref_conduct" = "darkred",
+                                     "waterlevel_m" = "black")) +
+      scale_shape_manual(values = c("FLAG_ICE" = 1,
+                                    "LOGGER_ICE" = 1,
+                                    "FLAG_DISTURBANCE" = 2,
+                                    "LOGGER_DISTURBANCE" = 2,
+                                    "FLAG_DRY" = 4,
+                                    "LOGGER_DRY" = 4))
+  } 
+  
+  # No water level data
+  # Use QAQC codes for conductivity
+  else {
+    p <- p +
+      geom_point(data = cdat %>% drop_na(co_qaqc_code) %>% filter(grepl("FLAG", co_qaqc_code)),
+                 aes(y = 0, shape = as.factor(co_qaqc_code)),
+                 color = "black") +
+      scale_colour_manual(values = c("conduct_uScm" = "#00008B",
+                                     "conduct_uScm_adj" = "#00008B",
+                                     "ref_conduct" = "darkred")) +
+      scale_shape_manual(values = c("FLAG_ICE" = 1,
+                                    "FLAG_DISTURBANCE" = 2,
+                                    "FLAG_DRY" = 4))
+  }
   
   q <- ggplot(cdat, aes(x = timestamp)) +
     geom_line(aes(y = watertemp_C, colour = "watertemp_C"), alpha = 0.5)+
     geom_line(aes(y = watertemp_C_adj, colour = "watertemp_C_adj"))+
     geom_point(aes(y = ref_watertemp_C, colour = "ref_watertemp"))+
-    scale_colour_manual(values = c("watertemp_C" = "#619b8a",
-                                   "watertemp_C_adj" = "#619b8a",
-                                   "ref_watertemp" = "green"))+
     labs(title = site,
          y = "Temperature (C)",
          x = "Timestamp", 
@@ -802,15 +881,33 @@ conductivity_qaqc <- function(input_data,
          shape = "") +
     theme_classic()
   
+  # Plot if the data contain air temperature
+  if(!is.na(var_airtemp_C)){
+    q <- q +
+      geom_line(aes(y = airtemp_C, colour = "airtemp_C"), linewidth = 0.3, alpha = 0.5)+
+      scale_colour_manual(values = c("watertemp_C" = "#619b8a",
+                                     "watertemp_C_adj" = "#619b8a",
+                                     "airtemp_C" = "lightblue",
+                                     "ref_watertemp" = "green"))
+  }
+  else {
+    q <- q +
+      scale_colour_manual(values = c("watertemp_C" = "#619b8a",
+                                     "watertemp_C_adj" = "#619b8a",
+                                     "ref_watertemp" = "green"))
+  }
+  
   # return variables to user input naming
   names(cdat)[names(cdat) == "conduct_uScm"] <- var_conduct_uScm
   names(cdat)[names(cdat) == "watertemp_C"] <- var_watertemp_C
   names(cdat)[names(cdat) == "conduct_uScm_adj"] <- paste0(var_conduct_uScm, "_adj")
   names(cdat)[names(cdat) == "watertemp_C_adj"] <- paste0(var_watertemp_C, "_adj")
+  if ("airtemp_C" %in% names(cdat)) names(cdat)[names(cdat) == "airtemp_C"] <- var_airtemp_C
+  if ("waterlevel_m" %in% names(cdat)) names(cdat)[names(cdat) == "waterlevel_m"] <- var_waterlevel_m
   
   if(plot_only == FALSE) {
-    print("Results returned as list: select [1] for conductivity data with QAQC flags, [2] conductivity data to visually assess for dry/ice/disturbance periods")
-    return(list(cdat, plotly::subplot(suppressWarnings(ggplotly(p)), suppressWarnings(ggplotly(q)), heights = c(0.5, 0.5), nrows = 2,shareX = TRUE, margin = 0.05)))
+    print("Results returned as list: select [1] for conductivity data with QAQC flags, [2] reference YSI measurements, [3] conductivity data to visually assess for dry/ice/disturbance periods")
+    return(list(cdat, ref_dat, plotly::subplot(suppressWarnings(ggplotly(p)), suppressWarnings(ggplotly(q)), heights = c(0.5, 0.5), nrows = 2,shareX = TRUE, margin = 0.05)))
   }
   if(plot_only == TRUE){
     return(plotly::subplot(suppressWarnings(ggplotly(p)), suppressWarnings(ggplotly(q)), heights = c(0.5, 0.5), nrows = 2,shareX = TRUE, margin = 0.05))
@@ -1476,7 +1573,11 @@ write_clean_data <- function(input_data, logger_type, output_path,
     list_element <- select(list_element, -year)
     
     # Define the output path
-    output_directory <- file.path(output_path, as.character(year), "clean", site_type)
+    if(logger_type == "U20_baro"){
+      output_directory <- file.path(output_path, as.character(year), "clean")
+    } else {
+      output_directory <- file.path(output_path, site_type, as.character(year), "clean")
+    }
     
     # Create a directory for the year if it doesn't exist
     if (!dir.exists(output_directory)) {
