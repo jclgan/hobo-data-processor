@@ -6,6 +6,8 @@ conduct_temp_comp <- function(input_data,
                               var_conduct_uScm = "conduct_uScm_U24_adj",
                               var_watertemp_C = "watertemp_C_U24_adj") {
   
+  require(tidyverse)
+  
   ## Using non-linear Temperature Correction Factors
   ## From Mettler-Toledo Conductivity Guide
   tcomp <- as.data.frame(read_csv(comp_file))
