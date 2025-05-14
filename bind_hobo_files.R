@@ -5,7 +5,7 @@
 #' @param meta_file Filepath of the logger deployment csv file
 #' @param logger_type Specify "U20_waterlevel", "U20_baro", "U24_conductivity", or "U26_dissox"
 
-bind_hobo_files <- function(raw_path, out_path, meta_file, logger_type) {
+bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_type) {
   library(tidyverse)
   
   # Read in the logger deployment file
@@ -124,7 +124,7 @@ bind_hobo_files <- function(raw_path, out_path, meta_file, logger_type) {
     year <- paste0(min(years), "-", max(years))
   }
   
-  filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_RAW", ".csv")
+  filename <- paste0(project_code, "_", site_type, "_", year, "_", param, "_", "all_RAW", ".csv")
   
   write_csv(all_data, file.path(out_path, filename))
   
