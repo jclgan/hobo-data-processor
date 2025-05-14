@@ -10,7 +10,7 @@ plot_logger_data <- function(baro_path = "none",
                              var_waterlevel_m = "waterlevel_m_U20_adj", 
                              var_DO_mgL = "DO_mgL_U26_adj", 
                              var_DO_percsat = "DO_percsat_U26_adj",
-                             var_spc_uScm = "spc_uScm_U24_adj",
+                             var_spc_uScm = "spc_uScm",
                              var_watertemp_C_1 = "watertemp_C_U26_adj", 
                              var_watertemp_C_2 = "watertemp_C_U20_adj",
                              var_watertemp_C_3 = "watertemp_C_U24_adj") {
@@ -77,11 +77,15 @@ plot_logger_data <- function(baro_path = "none",
     for (x in wl_csvs) {
       # ref_waterlevel_m can trigger a parsing error due to a large amount of NAs
       # specify it to be read in as numeric
-      col_types <- cols(
-        "ref_waterlevel_m" = col_double()
-      )
+      file_cols <- names(suppressMessages(read_csv(file.path(waterlevel_path, x), n_max = 0)))
       
-      dat <- suppressMessages(read_csv(paste(waterlevel_path, x, sep = "/"), col_types = col_types))
+      if ("ref_waterlevel_m" %in% file_cols) {
+        col_types <- cols("ref_waterlevel_m" = col_double())
+        dat <- suppressMessages(read_csv(file.path(waterlevel_path, x), col_types = col_types))
+        
+      } else {
+        dat <- suppressMessages(read_csv(file.path(waterlevel_path, x)))
+      }
       
       # Check for parsing issues
       parsing_issues <- problems(dat)
@@ -148,26 +152,26 @@ plot_logger_data <- function(baro_path = "none",
   # Combine DO, water level, and conductivity files
   if(conductivity_path != "none" & waterlevel_path != "none" & dissox_path != "none"){
     all_DO <- all_DO %>% 
-      select(timestamp,
-             logger_sn,
-             site_station_code,
-             DO_mgL,
-             DO_percsat,
-             watertemp_C_1,
-             DO_qaqc_code)
+      select(all_of(c("timestamp",
+                      "logger_sn",
+                      "site_station_code",
+                      "DO_mgL",
+                      "DO_percsat",
+                      "watertemp_C_1",
+                      "DO_qaqc_code")))
     all_wl <- all_wl %>% 
-      select(timestamp,
-             site_station_code,
-             waterlevel_m,
-             watertemp_C_2,
-             airtemp_C,
-             wl_qaqc_code)
+      select(any_of(c("timestamp",
+                      "site_station_code",
+                      "waterlevel_m",
+                      "watertemp_C_2",
+                      "airtemp_C",
+                      "wl_qaqc_code")))
     all_CO <- all_CO %>% 
-      select(timestamp,
-             site_station_code,
-             spc_uScm,
-             watertemp_C_3,
-             co_qaqc_code)
+      select(all_of(c("timestamp",
+                      "site_station_code",
+                      "spc_uScm",
+                      "watertemp_C_3",
+                      "co_qaqc_code")))
     dat <- full_join(all_DO, all_wl,
                      by = c("timestamp", "site_station_code")) %>% 
       full_join(all_CO, by = c("timestamp", "site_station_code"))
@@ -176,21 +180,20 @@ plot_logger_data <- function(baro_path = "none",
   # Combine DO & water level files
   if(conductivity_path == "none" & dissox_path != "none" & waterlevel_path != "none"){
     all_DO <- all_DO %>% 
-      select(timestamp,
-             logger_sn,
-             site_station_code,
-             DO_mgL,
-             DO_percsat,
-             watertemp_C_1,
-             airtemp_C,
-             DO_qaqc_code)
+      select(all_of(c("timestamp",
+                      "logger_sn",
+                      "site_station_code",
+                      "DO_mgL",
+                      "DO_percsat",
+                      "watertemp_C_1",
+                      "DO_qaqc_code")))
     all_wl <- all_wl %>% 
-      select(timestamp,
-             site_station_code,
-             waterlevel_m,
-             watertemp_C_2,
-             airtemp_C_2 = airtemp_C,
-             wl_qaqc_code)
+      select(any_of(c("timestamp",
+                      "site_station_code",
+                      "waterlevel_m",
+                      "watertemp_C_2",
+                      "airtemp_C",
+                      "wl_qaqc_code")))
     dat <- full_join(all_DO, all_wl,
                      by = c("timestamp", "site_station_code"))
   }
@@ -198,19 +201,19 @@ plot_logger_data <- function(baro_path = "none",
   # Combine conductivity & water level files
   if(dissox_path == "none" & conductivity_path != "none" & waterlevel_path != "none"){
     all_CO <- all_CO %>% 
-      select(timestamp,
-             logger_sn,
-             site_station_code,
-             spc_uScm,
-             watertemp_C_3,
-             co_qaqc_code)
+      select(all_of(c("timestamp",
+                      "logger_sn",
+                      "site_station_code",
+                      "spc_uScm",
+                      "watertemp_C_3",
+                      "co_qaqc_code")))
     all_wl <- all_wl %>% 
-      select(timestamp,
-             site_station_code,
-             waterlevel_m,
-             watertemp_C_2,
-             airtemp_C,
-             wl_qaqc_code)
+      select(any_of(c("timestamp",
+                      "site_station_code",
+                      "waterlevel_m",
+                      "watertemp_C_2",
+                      "airtemp_C",
+                      "wl_qaqc_code")))
     dat <- full_join(all_CO, all_wl,
                      by = c("timestamp", "site_station_code"))
   }
@@ -469,14 +472,10 @@ plot_logger_data <- function(baro_path = "none",
     if(conductivity_path != "none"){
       t <- ggplot(data = dat_site, aes(x = timestamp)) +
         geom_line(aes(y = spc_uScm), colour = "#1A85FF") +
-        # geom_line(data = dat_site %>% 
-        #             drop_na(co_qaqc_code) %>% 
-        #             filter(grepl("LOGGER", co_qaqc_code)),
-        #           aes(y = spc_uScm), colour = "#4FB6FF") +
         geom_point(data = dat_site %>% 
                      drop_na(co_qaqc_code) %>% 
                      filter(grepl("LOGGER", co_qaqc_code)),
-                   aes(y = 0, shape = as.factor(wl_qaqc_code)), colour = "black") +
+                   aes(y = 0, shape = as.factor(co_qaqc_code)), colour = "black") +
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
                          date_labels = "%m") +
@@ -669,16 +668,16 @@ plot_logger_data <- function(baro_path = "none",
     
     # Plot conductivity
     if(conductivity_path != "none"){
-      t <- ggplot(data = dat, aes(x = timestamp, y = spc_uScm)) +
-        geom_line() +
-        scale_x_datetime(limits = c(start_date, end_date),
-                         breaks = "1 month",
-                         date_labels = "%m") +
-        labs(title = "Conductivity",
-             y = expression(paste("Specific Conductance (", mu, "S/cm)")),
-             x = "Month") +
-        facet_wrap(~ site_station_code) +
-        theme_classic()
+        t <- ggplot(data = dat, aes(x = timestamp, y = spc_uScm)) +
+          geom_line() +
+          scale_x_datetime(limits = c(start_date, end_date),
+                           breaks = "1 month",
+                           date_labels = "%m") +
+          labs(title = "Conductivity",
+               y = expression(paste("Specific Conductance (", mu, "S/cm)")),
+               x = "Month") +
+          facet_wrap(~ site_station_code) +
+          theme_classic()
       
       plots_list <- c(plots_list, list(conduct = t))
     }
