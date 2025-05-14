@@ -4,7 +4,7 @@
 #' the next closest logger.
 #' 
 #' @param input_data Filepath or data frame of the primary logger file to which the baro file will be joined
-#' @param baro_file Filepath of the barometric logger data
+#' @param baro_file Filepath (or vector of filepaths) of the barometric logger data
 #' @param site_file Filepath of the site file containing coordinates (in order to determine the location of the closets baro logger)
 #' @param out_path Directory to which the compiled data frame will be saved
 #' 
@@ -15,8 +15,8 @@
 # baro_file <- here("Data", "barometric-pressure", "2024", "intermediate", "DM_ST_2024_barometric_all_QAQC.csv")
 # site_file <- here("Data", "site-attribute", "Deadman_sites_20241112.csv")
 
-join_nearest_baro <- function(input_data, 
-                              baro_file, 
+join_nearest_baro <- function(input_file, 
+                              baro_files, 
                               site_file, 
                               out_path,
                               project_code,
@@ -27,12 +27,17 @@ join_nearest_baro <- function(input_data,
   library(tidyverse)
   library(geosphere)
   
+  input_data <- read_csv(input_file, show_col_types = FALSE)
+  
   # Filter station if specified
   if(select_station != "all") {
     input_data <- input_data %>% 
       filter(site_station_code == select_station) }
   
-  baro_dat <- suppressMessages(read_csv(baro_file))
+  # Read in the baro file(s)
+  baro_list <- lapply(baro_files, read_csv, show_col_types = FALSE)
+  baro_dat <- bind_rows(baro_list)
+  baro_dat <- distinct(baro_dat)
   
   # user input baro data names to local names
   names(baro_dat)[names(baro_dat) == var_airpress_kPa ] <- "airpress_kPa"
@@ -94,44 +99,43 @@ join_nearest_baro <- function(input_data,
     rename(primary_baro = baro_site) %>% 
     select(-distance)
   
-  print("Determining nearest baro loggers for each record (this may take a minute)...")
+  cat("Determining nearest baro loggers for each record (this may take a few minutes)...\n")
   
-  # Create a progress bar
+  # Track progress
+  ### JG note: The console output is kind of messy, but it works for now
   pb <- txtProgressBar(min = 0, max = nrow(dat), style = 3)
-  
-  # Add nearest_baro column to dat
+
   dat$nearest_baro <- NA
-  
-  # Initialize variable to track current site
+
   current_site <- NA
-  
+
   for(i in 1:nrow(dat)) {
     this_site <- dat$site_station_code[i]
-    
+
     # Print message only when site changes
     if (!identical(this_site, current_site)) {
       cat("\nProcessing", this_site, "\n")
       current_site <- this_site
     }
-    
+
     # Get the distances for the current site
     site_distances <- filter(distances, dat_site == dat$site_station_code[i])
-    
+
     for(j in 1:nrow(site_distances)) {
       # Get the baro_dat rows for the current closest site and matching timestamp
       baro_rows <- filter(baro_dat, site_station_code == site_distances$baro_site[j], timestamp == dat$timestamp[i])
-      
+
       # If there's a matching timestamp, set the nearest_baro and break the loop
       if(nrow(baro_rows) > 0) {
         dat$nearest_baro[i] <- site_distances$baro_site[j]
         break
       }
     }
-    
+
     # Update the progress bar
     setTxtProgressBar(pb, i)
   }
-  
+
   # Close progress bar
   close(pb)
   
@@ -336,7 +340,7 @@ join_nearest_baro <- function(input_data,
     
     param <- unique(dat_with_baro_qaqc$parameter)
     
-    if(select_station = "all") {
+    if(select_station == "all") {
       filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "_baro_compiled", ".csv")
     } 
     else {
