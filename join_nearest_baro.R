@@ -19,7 +19,7 @@ join_nearest_baro <- function(input_file,
                               baro_files, 
                               site_file, 
                               out_path,
-                              project_code,
+                              project_code = "NT",
                               select_station = "all", 
                               var_airpress_kPa = "airpress_kPa_U20", 
                               var_airtemp_C = "airtemp_C_U20") {
@@ -344,7 +344,7 @@ join_nearest_baro <- function(input_file,
       filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "_baro_compiled", ".csv")
     } 
     else {
-      filename <- paste0(select_station, "_", year, "_", param, "_", "_baro_compiled", ".csv")
+      filename <- paste0(select_station, "_", year, "_", param, "_baro_compiled", ".csv")
     }
     
     write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
