@@ -123,7 +123,14 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
     year <- paste0(min(years), "-", max(years))
   }
   
-  filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "raw", ".csv")
+  if(logger_type == "U20_baro") {
+    filename <- paste0(project_code, "_all_", year, "_", param, "_", "raw", ".csv")
+  }
+  
+  else {
+    filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "raw", ".csv")
+  }
+  
   
   write_csv(all_data, file.path(out_path, filename))
   
