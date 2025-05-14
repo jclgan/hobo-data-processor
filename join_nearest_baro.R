@@ -8,14 +8,21 @@
 #' @param site_file Filepath of the site file containing coordinates (in order to determine the location of the closets baro logger)
 #' @param out_path Directory to which the compiled data frame will be saved
 #' 
-#' @@returns Data frame of the compiled logger file and saves a csv to the same directory as the input file
+#' @@returns Data frame of the compiled logger file and saves a csv to a user-specified directory
 
 # library(here)
 # input_file <- here("Data", "water-level", "2024", "intermediate", "DM_ST_2024_waterlevel_all_QAQC.csv")
 # baro_file <- here("Data", "barometric-pressure", "2024", "intermediate", "DM_ST_2024_barometric_all_QAQC.csv")
 # site_file <- here("Data", "site-attribute", "Deadman_sites_20241112.csv")
 
-join_nearest_baro <- function(input_data, baro_file, site_file, select_station = "all", var_airpress_kPa = "airpress_kPa_U20", var_airtemp_C = "airtemp_C_U20") {
+join_nearest_baro <- function(input_data, 
+                              baro_file, 
+                              site_file, 
+                              out_path,
+                              project_code,
+                              select_station = "all", 
+                              var_airpress_kPa = "airpress_kPa_U20", 
+                              var_airtemp_C = "airtemp_C_U20") {
   
   library(tidyverse)
   library(geosphere)
@@ -316,23 +323,31 @@ join_nearest_baro <- function(input_data, baro_file, site_file, select_station =
   names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airtemp_C"] <- var_airtemp_C
   names(dat_with_baro_qaqc)[names(dat_with_baro_qaqc) ==  "airtemp_C_adj"] <- paste0(var_airtemp_C, "_adj")
   
-  # # Write the file and return the data frame
-  # site_type <- unique(dat_with_baro_qaqc$site_type)
-  # 
-  # years <- sort(unique(year(dat_with_baro_qaqc$timestamp)))
-  # if (length(years) == 1) {
-  #   year <- as.character(years)
-  # } else {
-  #   year <- paste0(min(years), "-", max(years))
-  # }
-  # 
-  # param <- unique(dat_with_baro_qaqc$parameter)
-  # 
-  # filename <- paste0("DM_", site_type, "_", year, "_", param, "_", "all_BARO_COMPILED", ".csv")
-  # 
-  # write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
-  # 
-  # print(paste("Writing to csv", filename))
+  # Write the file and return the data frame
+  if(!missing(out_path)) {
+    site_type <- unique(dat_with_baro_qaqc$site_type)
+    
+    years <- sort(unique(year(dat_with_baro_qaqc$timestamp)))
+    if (length(years) == 1) {
+      year <- as.character(years)
+    } else {
+      year <- paste0(min(years), "-", max(years))
+    }
+    
+    param <- unique(dat_with_baro_qaqc$parameter)
+    
+    if(select_station = "all") {
+      filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "_baro_compiled", ".csv")
+    } 
+    else {
+      filename <- paste0(select_station, "_", year, "_", param, "_", "_baro_compiled", ".csv")
+    }
+    
+    write_csv(dat_with_baro_qaqc, file.path(out_path, filename))
+    
+    print(paste("Writing to csv", filename))
+  }
+  
   
   return(dat_with_baro_qaqc)
 }

@@ -113,9 +113,8 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
   }
   
   # Write the data to a csv
-  current_date <- Sys.Date()
-  site_type <- all_data$site_type[1]
-  param <- data$parameter[1]
+  site_type <- unique(all_data$site_type)
+  param <- unique(data$parameter)
   
   years <- sort(unique(year(all_data$timestamp)))
   if (length(years) == 1) {
@@ -124,7 +123,7 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
     year <- paste0(min(years), "-", max(years))
   }
   
-  filename <- paste0(project_code, "_", site_type, "_", year, "_", param, "_", "all_RAW", ".csv")
+  filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "raw", ".csv")
   
   write_csv(all_data, file.path(out_path, filename))
   
