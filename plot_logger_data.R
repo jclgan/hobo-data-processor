@@ -50,7 +50,14 @@ plot_logger_data <- function(baro_path = "none",
       
       dat <- suppressMessages(read_csv(paste(dissox_path, x, sep = "/")))
       
-      site <- unique(dat$site_station_code)
+      # Check for parsing issues
+      parsing_issues <- problems(dat)
+      
+      # # If there are any parsing issues, print them
+      # if (nrow(parsing_issues) > 0) {
+      #   print(paste("Parsing issues in file", x))
+      #   print(parsing_issues)
+      # }
       
       print(paste("Reading", x))
       
@@ -58,7 +65,9 @@ plot_logger_data <- function(baro_path = "none",
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
-      list_DO_dat[site] <- list(dat)
+      name <- tools::file_path_sans_ext(basename(x))
+      
+      list_CO_dat[name] <- list(dat)
     }
     
     all_DO <- bind_rows(list_DO_dat)
@@ -96,15 +105,15 @@ plot_logger_data <- function(baro_path = "none",
       #   print(parsing_issues)
       # }
       
-      site <- unique(dat$site_station_code)
-      
       print(paste("Reading", x))
       
       if(length(site) != 1){
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
-      list_wl_dat[site] <- list(dat)
+      name <- tools::file_path_sans_ext(basename(x))
+      
+      list_CO_dat[name] <- list(dat)
     }
     
     all_wl <- bind_rows(list_wl_dat)
@@ -132,15 +141,15 @@ plot_logger_data <- function(baro_path = "none",
       #   print(parsing_issues)
       # }
       
-      site <- unique(dat$site_station_code)
-      
       print(paste("Reading", x))
       
       if(length(site) != 1){
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
-      list_CO_dat[site] <- list(dat)
+      name <- tools::file_path_sans_ext(basename(x))
+      
+      list_CO_dat[name] <- list(dat)
     }
     
     all_CO <- bind_rows(list_CO_dat)
@@ -253,6 +262,14 @@ plot_logger_data <- function(baro_path = "none",
     
     start_date <- floor_date(min(dat_site$timestamp), "month")
     end_date <- ceiling_date(max(dat_site$timestamp), "month")
+    years <- as.integer(format(dat$timestamp, "%Y"))
+    unique_years <- sort(unique(years))
+    
+    if (length(unique_years) == 1) {
+      year_range <- as.character(unique_years)
+    } else {
+      year_range <- paste0(min(unique_years), "-", max(unique_years))
+    }
     
     plots_list <- list()
     
@@ -269,7 +286,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
                          date_labels = "%m") +
-        labs(title = paste("Dissolved oxygen for:", site),
+        labs(title = paste("Dissolved oxygen for:", site, year_range),
              y = "Dissolved oxygen (mg/L)",
              x = "Month",
              colour = "Logger type",
@@ -299,7 +316,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
                          date_labels = "%m") +
-        labs(title = paste("Dissolved oxygen for:", site),
+        labs(title = paste("Dissolved oxygen for:", site, year_range),
              y = "Dissolved oxygen (% saturation)",
              x = "Month",
              colour = "Logger type") +
@@ -338,7 +355,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
                          date_labels = "%m") +
-        labs(title = paste("Water level for:", site),
+        labs(title = paste("Water level for:", site, year_range),
              y = "Water level (m)",
              x = "Month",
              colour = "",
@@ -358,7 +375,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = paste("Temperature for:", site),
+          labs(title = paste("Temperature for:", site, year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -456,7 +473,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = paste("Temperature for:", site),
+          labs(title = paste("Temperature for:", site, year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -482,7 +499,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_shape_manual(values = c("LOGGER_ICE" = 1,
                                       "LOGGER_DISTURBANCE" = 2,
                                       "LOGGER_DRY" = 4)) +
-        labs(title = paste("Conductivity for:", site),
+        labs(title = paste("Conductivity for:", site, year_range),
              y = expression(paste("Specific Conductance (", mu, "S/cm)")),
              x = "Month",
              colour = "",
@@ -532,6 +549,14 @@ plot_logger_data <- function(baro_path = "none",
     
     start_date <- floor_date(min(dat$timestamp), "month")
     end_date <- ceiling_date(max(dat$timestamp), "month")
+    years <- as.integer(format(dat$timestamp, "%Y"))
+    unique_years <- sort(unique(years))
+    
+    if (length(unique_years) == 1) {
+      year_range <- as.character(unique_years)
+    } else {
+      year_range <- paste0(min(unique_years), "-", max(unique_years))
+    }
     
     # Plot dissolved oxygen
     if(dissox_path != "none") {
@@ -544,7 +569,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_y_continuous(limits = c(0, 15),
                            breaks = seq(0, 15, by = 5),
                            minor_breaks = seq(0, 15, by = 2.5)) +
-        labs(title = "Dissolved oxygen concentration",
+        labs(title = paste("Dissolved oxygen concentration for", year_range),
              y = "Dissolved oxygen (mg/L)",
              x = "Month") +
         facet_wrap(~ site_station_code) +
@@ -559,7 +584,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_y_continuous(limits = c(0, 150),
                            breaks = seq(0, 150, by = 50),
                            minor_breaks = seq(0, 150, by = 25)) +
-        labs(title = "Dissolved oxygen saturation",
+        labs(title = paste("Dissolved oxygen saturation for", year_range),
              y = "Dissolved oxygen (% saturation)",
              x = "Month") +
         facet_wrap(~ site_station_code) +
@@ -575,7 +600,7 @@ plot_logger_data <- function(baro_path = "none",
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
                          date_labels = "%m") +
-        labs(title = "Water level",
+        labs(title = paste("Water level for", year_range),
              y = "Water level (m)",
              x = "Month") +
         facet_wrap(~ site_station_code) +
@@ -597,7 +622,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = "Water temperature",
+          labs(title = paste("Water temperature for", year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -617,7 +642,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = "Water temperature",
+          labs(title = paste("Water temperature for", year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -637,7 +662,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = "Water temperature",
+          labs(title = paste("Water temperature for", year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -655,7 +680,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = "Water temperature",
+          labs(title = paste("Water temperature for", year_range),
                y = expression(paste("Temperature (", degree, "C)")),
                x = "Month",
                colour = "") +
@@ -673,7 +698,7 @@ plot_logger_data <- function(baro_path = "none",
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
-          labs(title = "Conductivity",
+          labs(title = paste("Conductivity for", year_range),
                y = expression(paste("Specific Conductance (", mu, "S/cm)")),
                x = "Month") +
           facet_wrap(~ site_station_code) +
