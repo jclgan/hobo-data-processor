@@ -1064,9 +1064,20 @@ adjust_wl_ref <- function(input_data, start_time, end_time, shift, var_waterleve
 #' site_data <- adjust_waterlevel_spike(timestamp_start= as.POSIXct("2022-10-09 05:00:00", tz = "UTC"), timestamp_end= as.POSIXct("2022-10-12 21:00:00", tz = "UTC"), waterlevel_data = wl_flags, reason_to_adjust = "ice") 
 #' @export
 
-adjust_wl_spike <- function(input_data, start_time, end_time, reason, var_waterlevel_m = "waterlevel_m_U20", var_watertemp_C = "watertemp_C_U20") {
+adjust_spike <- function(input_data, 
+                         param = c("wl", "co", "do"), 
+                         start_time, 
+                         end_time, 
+                         reason, 
+                         var_waterlevel_m = "waterlevel_m_U20", 
+                         var_watertemp_C = "watertemp_C_U20") {
   
   output_data <- input_data
+  
+  param <- match.arg(param)
+  adj_col <- paste0(param, "_qaqc_adj")
+  note_col <- paste0(param, "_qaqc_note")
+  code_col <- paste0(param, "_qaqc_code")
   
   timestamp_start <- as.POSIXct(start_time, format = "%Y-%m-%d %H:%M", tz = "UTC")
   timestamp_end <- as.POSIXct(end_time, format = "%Y-%m-%d %H:%M", tz = "UTC") 
@@ -1086,8 +1097,8 @@ adjust_wl_spike <- function(input_data, start_time, end_time, reason, var_waterl
     
     # remove spikes
     if(output_data$timestamp[i] >= timestamp_start & output_data$timestamp[i] <= timestamp_end) {
-      output_data$wl_qaqc_adj[i] <-  "AVERAGE"
-      output_data$wl_qaqc_note[i] <- "spike flattened to average between before and after event"
+      output_data[[adj_col]][i] <-  "AVERAGE"
+      output_data[[note_col]][i] <- "spike flattened to average between before and after event"
       # use adj if full, if NA use water_level_m
       if(!is.na(output_data$waterlevel_m_adj[i])) {
         output_data$waterlevel_m_adj[i] <- output_data$waterlevel_m_adj[output_data$timestamp == timestamp_start]+corr_event*(i-which(output_data$timestamp == timestamp_start))
@@ -1095,10 +1106,10 @@ adjust_wl_spike <- function(input_data, start_time, end_time, reason, var_waterl
         output_data$waterlevel_m[i] <- output_data$waterlevel_m[output_data$timestamp == timestamp_start]+corr_event*(i-which(output_data$timestamp == timestamp_start))
       }
       if(reason == "ice") {
-        output_data$wl_qaqc_code[i] <- "LOGGER_ICE"
+        output_data[[code_col]][i] <- "LOGGER_ICE"
       }
       if(reason == "disturbance") {
-        output_data$wl_qaqc_code[i] <- "LOGGER_DISTURBANCE"
+        output_data[[code_col]][i] <- "LOGGER_DISTURBANCE"
       }
       if(reason != "ice" & reason != "disturbance") {
         print("reason_to_adjust not recognized. Must be either 'ice' or 'disturbance'.")
