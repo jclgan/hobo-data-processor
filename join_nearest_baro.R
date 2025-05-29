@@ -341,7 +341,7 @@ join_nearest_baro <- function(input_file,
     param <- unique(dat_with_baro_qaqc$parameter)
     
     if(select_station == "all") {
-      filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "_baro_compiled", ".csv")
+      filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_baro_compiled", ".csv")
     } 
     else {
       filename <- paste0(select_station, "_", year, "_", param, "_baro_compiled", ".csv")
