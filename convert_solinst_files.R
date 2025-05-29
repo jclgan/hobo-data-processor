@@ -26,9 +26,14 @@ convert_solinst_files <- function(input_folder, output_folder) {
     
     # Trim all metadata, preserving original row headers
     dat <- read_csv(file, skip = 13)
+    
+    if (!inherits(dat$Date, "Date")) {
+      dat$Date <- as.Date(parse_date_time(dat$Date, orders = c("mdy", "ymd", "m/d/Y", "Y-m-d")))
+    }
+    
     dat <- dat %>% 
       mutate(`#` = row_number(),
-             Date = format(as.Date(Date, format = "%Y-%m-%d"), "%m/%d/%y"),
+             Date = format(Date, "%m/%d/%y"),
              Time = format(format(strptime(Time, format = "%H:%M"), "%I:%M:%S %p")),
              `Date Time`= paste(Date, Time)
       ) %>% 
