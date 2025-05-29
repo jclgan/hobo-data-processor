@@ -1147,7 +1147,6 @@ adjust_logger_NA <- function(input_data,
                              flag_only = FALSE,
                              var_waterlevel_m = "waterlevel_m_U20", 
                              var_watertemp_C = "watertemp_C_U20", 
-                             var_airtemp_C = "airtemp_C_U20",
                              var_DO_mgL = "DO_mgL_U26", 
                              var_DO_percsat = "DO_percsat_U26",
                              var_conduct_uScm = "conduct_uScm_U24") {
@@ -1160,12 +1159,15 @@ adjust_logger_NA <- function(input_data,
   output_data <- input_data %>% 
     mutate(timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M", tz = "UTC"))
   
+  if (!(logger_type %in% c("U20", "U24", "U26"))) {
+    stop(paste("Logger type", logger_type, "not recognized. Must be one of 'U20', 'U24', or 'U26'."))
+  }
+  
   ## U20 Water Level Logger adjustments
-  if (logger_type == "U20_water") {
+  if (logger_type == "U20") {
     # rename user input variables
     names(output_data)[names(output_data) == var_waterlevel_m ] <- "waterlevel_m"
     names(output_data)[names(output_data) == paste0(var_waterlevel_m, "_adj") ] <- "waterlevel_m_adj"
-    names(output_data)[names(output_data) == var_airtemp_C ] <- "airtemp_C"
     # correct user entry error
     if(var_watertemp_C == "watertemp_C_U26"){
       var_watertemp_C == "watertemp_C_U20"
@@ -1250,7 +1252,7 @@ adjust_logger_NA <- function(input_data,
       } # end of apply_all = FALSE
     } # end of reason == "dry"
     
-  } # end of logger_type = U20_water 
+  } # end of logger_type = U20
   
   
   ## U26 Dissolved Oxygen Logger adjustments
@@ -1446,7 +1448,6 @@ adjust_logger_NA <- function(input_data,
   names(output_data)[names(output_data) ==  "DO_mgL_adj"] <-  paste0(var_DO_mgL, "_adj")
   names(output_data)[names(output_data) ==  "DO_percsat"] <-  var_DO_percsat
   names(output_data)[names(output_data) ==  "DO_percsat_adj"] <-  paste0(var_DO_percsat, "_adj")
-  names(output_data)[names(output_data) ==  "airtemp_C"] <-  var_airtemp_C
   names(output_data)[names(output_data) == "conduct_uScm" ] <-  var_conduct_uScm
   names(output_data)[names(output_data) == "conduct_uScm_adj"] <-  paste0(var_conduct_uScm, "_adj")
   
