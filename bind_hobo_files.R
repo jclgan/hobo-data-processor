@@ -19,6 +19,10 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
   # Get all csv files in the raw data directory
   file_list <- list.files(path = raw_path, recursive = FALSE, full.names = TRUE, pattern = "\\.csv$") # extract file names ending in csv
   
+  if (length(file_list) == 0) {
+    stop("Folder is empty or nonexistent. Check the folder path is correct.")
+  }
+  
   all_data <- data.frame()
   
   # Loop through each csv file
@@ -131,6 +135,9 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
     filename <- paste0(project_code, "_all_", site_type, "_", year, "_", param, "_", "raw", ".csv")
   }
   
+  if (!dir.exists(out_path)) {
+    stop("Output folder does not exist. Check the specified path is correct.")
+  }
   
   write_csv(all_data, file.path(out_path, filename))
   
