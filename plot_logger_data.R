@@ -24,7 +24,7 @@ plot_logger_data <- function(baro_path = "none",
   #   list_baro_dat <- lapply(baro_csvs, function(x) {
   #     dat <- read_csv(paste(baro_path, x, sep = "/"))
   #     site <- unique(dat$site_station_code)
-  #     if(length(site) == 1) {
+  #     if(length(unique(dat$site_station_code)) == 1) {
   #       list(dat, name = site)
   #     } else {
   #       stop("More than one unique 'site_station_code' in file ", x)
@@ -53,21 +53,21 @@ plot_logger_data <- function(baro_path = "none",
       # Check for parsing issues
       parsing_issues <- problems(dat)
       
-      # # If there are any parsing issues, print them
-      # if (nrow(parsing_issues) > 0) {
-      #   print(paste("Parsing issues in file", x))
-      #   print(parsing_issues)
-      # }
+      # If there are any parsing issues, print them
+      if (nrow(parsing_issues) > 0) {
+        print(paste("Parsing issues in file", x))
+        print(parsing_issues)
+      }
       
       print(paste("Reading", x))
       
-      if(length(site) != 1){
+      if(length(unique(dat$site_station_code)) != 1){
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
       name <- tools::file_path_sans_ext(basename(x))
       
-      list_CO_dat[name] <- list(dat)
+      list_DO_dat[name] <- list(dat)
     }
     
     all_DO <- bind_rows(list_DO_dat)
@@ -99,21 +99,21 @@ plot_logger_data <- function(baro_path = "none",
       # Check for parsing issues
       parsing_issues <- problems(dat)
       
-      # # If there are any parsing issues, print them
-      # if (nrow(parsing_issues) > 0) {
-      #   print(paste("Parsing issues in file", x))
-      #   print(parsing_issues)
-      # }
+      # If there are any parsing issues, print them
+      if (nrow(parsing_issues) > 0) {
+        print(paste("Parsing issues in file", x))
+        print(parsing_issues)
+      }
       
       print(paste("Reading", x))
       
-      if(length(site) != 1){
+      if(length(unique(dat$site_station_code)) != 1){
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
       name <- tools::file_path_sans_ext(basename(x))
       
-      list_CO_dat[name] <- list(dat)
+      list_wl_dat[name] <- list(dat)
     }
     
     all_wl <- bind_rows(list_wl_dat)
@@ -134,16 +134,16 @@ plot_logger_data <- function(baro_path = "none",
       
       # Check for parsing issues
       parsing_issues <- problems(dat)
-      
-      # # If there are any parsing issues, print them
-      # if (nrow(parsing_issues) > 0) {
-      #   print(paste("Parsing issues in file", x))
-      #   print(parsing_issues)
-      # }
+
+      # If there are any parsing issues, print them
+      if (nrow(parsing_issues) > 0) {
+        print(paste("Parsing issues in file", x))
+        print(parsing_issues)
+      }
       
       print(paste("Reading", x))
       
-      if(length(site) != 1){
+      if(length(unique(dat$site_station_code)) != 1){
         stop("More than one unique 'site_station_code' in file ", x)
       }
       
@@ -561,7 +561,7 @@ plot_logger_data <- function(baro_path = "none",
     # Plot dissolved oxygen
     if(dissox_path != "none") {
       p <- ggplot(data = dat, aes(x = timestamp, group = logger_sn)) +
-        geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 8, ymax = 10), fill = "lightgrey", alpha = 0.25) +
+        # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 8, ymax = 10), fill = "lightgrey", alpha = 0.25) +
         geom_line(aes(y = DO_mgL)) +
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
@@ -576,7 +576,7 @@ plot_logger_data <- function(baro_path = "none",
         theme_classic()
       
       q <- ggplot(data = dat, aes(x = timestamp, group = logger_sn)) +
-        geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 80, ymax = 100), fill = "lightgrey", alpha = 0.25) +
+        # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 80, ymax = 100), fill = "lightgrey", alpha = 0.25) +
         geom_line(aes(y = DO_percsat)) +
         scale_x_datetime(limits = c(start_date, end_date),
                          breaks = "1 month",
@@ -612,7 +612,7 @@ plot_logger_data <- function(baro_path = "none",
       ## U26, U24, and U20 sensors
       if(dissox_path != "none" & conductivity_path != "none") {
         s <- ggplot(data = dat, aes(x = timestamp, group = logger_sn)) +
-          geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
+          # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
           geom_line(aes(y = watertemp_C_2, colour = "Water (U20)")) +
           geom_line(aes(y = watertemp_C_1, colour = "Water (U26)")) +
           geom_line(aes(y = watertemp_C_3, colour = "Water (U24)")) +
@@ -633,7 +633,7 @@ plot_logger_data <- function(baro_path = "none",
       ## U26 and U20 sensors
       else if(dissox_path != "none") {
         s <- ggplot(data = dat, aes(x = timestamp, group = logger_sn)) +
-          geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
+          # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
           # geom_line(aes(y = airtemp_C, colour = "Air"), alpha = 0.25) +
           geom_line(aes(y = watertemp_C_2, colour = "U20")) +
           geom_line(aes(y = watertemp_C_1, colour = "U26")) +
@@ -653,7 +653,7 @@ plot_logger_data <- function(baro_path = "none",
       ## U24 and U20 sensors
       else if(conductivity_path != "none") {
         s <- ggplot(data = dat, aes(x = timestamp)) +
-          geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
+          # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
           # geom_line(aes(y = airtemp_C, colour = "Air"), alpha = 0.25) +
           geom_line(aes(y = watertemp_C_2, colour = "Water (U20)")) +
           geom_line(aes(y = watertemp_C_1, colour = "Water (U24)")) +
@@ -673,10 +673,9 @@ plot_logger_data <- function(baro_path = "none",
       ## U20 sensor only
       else {
         s <- ggplot(data = dat, aes(x = timestamp)) +
-          geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
+          # geom_rect(aes(xmin = start_date, xmax = end_date, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
           geom_line(aes(y = airtemp_C,), alpha = 0.25) +
-          geom_line(aes(y = watertemp_C_1)) +
-          geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 16), fill = "lightgrey", alpha = 0.25) +
+          geom_line(aes(y = watertemp_C_2)) +
           scale_x_datetime(limits = c(start_date, end_date),
                            breaks = "1 month",
                            date_labels = "%m") +
@@ -745,7 +744,7 @@ plot_logger_data <- function(baro_path = "none",
 #       
 #       print(paste("Reading", x))
 #       
-#       if(length(site) != 1){
+#       if(length(unique(dat$site_station_code)) != 1){
 #         stop("More than one unique 'site_station_code' in file ", x)
 #       }
 #       
