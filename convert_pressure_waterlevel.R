@@ -163,10 +163,10 @@ convert_pressure_waterlevel <- function(input_data,
   # Selects corresponding timestamp from the nth row (may need to add/subtract an hour if logger was out of water)
   T_meas <- as.numeric(ref_dat[select_measurement,"ref_timestamp"])
   
-  # Find the row with the closest timestamp within 60 minutes
+  # Find the row with the closest timestamp within 120 minutes
   closest_index <- which.min(abs(difftime(wl_dat_ref$timestamp, T_meas, units = "mins")))
   
-  if (abs(difftime(wl_dat_ref$timestamp[closest_index], T_meas, units = "mins")) <= 60) {
+  if (abs(difftime(wl_dat_ref$timestamp[closest_index], T_meas, units = "mins")) <= 120) {
     # Select water level and barometric sensor depths at reference time
     D_ref <- wl_dat_ref$sensor_depth_m[closest_index]
     D_baro0 <- wl_dat_ref$baro_sensor_depth_m[closest_index]
