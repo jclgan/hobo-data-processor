@@ -13,6 +13,17 @@
 #'
 #' @return A data frame with an additional column containing the corrected specific conductance.
 #' @export
+#' 
+#' @examples
+#' # Apply temperature compensation to a list of data frames and bind the results
+#' all_co_spc <- purrr::map(
+#'   list_co_qaqc,
+#'   \(df) conduct_temp_comp(
+#'     df,
+#'     comp_file = here("Code", "functions", "tempcomp27888.csv")
+#'   )
+#' ) |>
+#'   purrr::list_rbind()
 
 conduct_temp_comp <- function(input_data,
                               comp_file,
