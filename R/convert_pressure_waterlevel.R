@@ -1,10 +1,46 @@
-## Test me
-# input_file <- list_WL$WL_DEAD_ST_10
-# reference_file <- here("Data", "site-attribute", "DM_manual_stage_wl_measurements_20240923.csv")
-# # select_station <- "DEAD_ST_10"
-# reference_type <- "stage"
-
+#' Water Level Conversion
+#'
+#' Converts absolute water pressure (kPa) to water level (m) by compensating for barometric pressure 
+#' using reference measurements from a manual stage or depth survey.
+#' 
 #' Source: https://www.onsetcomp.com/resources/tech-notes/barometric-compensation-method
+#'
+#' @param input_data Data frame. Contains time series data including water pressure, temperature, 
+#'   and barometric pressure.
+#' @param reference_file File path. Path to the CSV containing manual stage or depth measurements.
+#' @param reference_type Character. Either \code{"stage"} or \code{"depth"}, depending on the method 
+#'   used for the reference measurements. Defaults to \code{"stage"}.
+#' @param select_measurement Double. Row number of the reference measurement to use if multiple exist. 
+#'   Defaults to \code{1}.
+#' @param var_reference_waterlevel_m Character. Name of the column with reference water level values (in m). 
+#'   Defaults to \code{"stage_m"}.
+#' @param var_reference_timestamp Character. Name of the timestamp column for reference measurements. 
+#'   Format must be \code{m/d/yyyy hh:mm} in 24-hour time with no time zone. 
+#'   Defaults to \code{"stage_timestamp"}.
+#' @param var_waterpress_kPa Character. Name of the column with water pressure values (in kPa). 
+#'   Defaults to \code{"waterpress_kPa_U20"}.
+#' @param var_watertemp_C Character. Name of the column with water temperature values (°C). 
+#'   Defaults to \code{"watertemp_C_U20"}.
+#' @param var_airpress_kPa Character. Name of the column with barometric pressure values (in kPa). 
+#'   Defaults to \code{"airpress_kPa_U20_adj"}.
+#' @param var_airtemp_C Character. Name of the column with air temperature values (°C). 
+#'   Defaults to \code{"airtemp_C_U20_adj"}.
+#'
+#' @return A list containing:
+#' \itemize{
+#'   \item \code{[[1]]} A data frame with water level (m) derived from pressure compensation.
+#'   \item \code{[[2]]} A data frame of the reference water level measurement(s) used.
+#'   \item \code{[[3]]} A \code{ggplot} object to visually inspect alignment between calculated and reference values.
+#' }
+#' @export
+#'
+#' @examples
+#' WL_TAYL_OC_30 <- convert_pressure_waterlevel(
+#'   input_data = WL_TAYL_OC_30,
+#'   reference_file = here("Data", "site-attribute", "DM_manual_stage_wl_measurements_20240923.csv"),
+#'   reference_type = "stage",
+#'   select_measurement = 1
+#' )
 
 convert_pressure_waterlevel <- function(input_data,
                                         reference_file,
