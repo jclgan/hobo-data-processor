@@ -1,22 +1,60 @@
-#' Bind the raw csv output of Hobo data logger files
-#' 
-#' @param raw_path Folder containing the raw csv files
-#' @param out_path Folder where you want the bound csv of all sites to be saved
-#' @param meta_file Filepath of the logger deployment csv file
-#' @param logger_type Specify "U20_waterlevel", "U20_baro", "U24_conductivity", or "U26_dissox"
+#' Bind HOBO Files
+#'
+#' Trims raw CSV output from HOBO data loggers to the deployment window defined in a metadata file,
+#' then binds the trimmed files into a single data frame for further processing.
+#'
+#' @param raw_path File path. Folder containing the raw CSV files exported from HOBO loggers.
+#' @param out_path File path. Folder where the bound CSV of all processed sites will be saved.
+#' @param meta_file File path. Path to the metadata CSV file containing logger deployment details. 
+#'   Must include the columns: \code{sn}, \code{site_station_code}, \code{site_type}, 
+#'   \code{timestamp_deploy}, and \code{timestamp_remove}. 
+#'   The \code{site_station_code} column must follow the format: 
+#'   \code{<site_name>_<site_type>_<station_num>} (e.g., \code{"DEAD_ST_10"}), with all components as character strings separated by underscores.
+#' @param project_code Character. Short code used to prefix the filename of the bound data (e.g., \code{"DM"}).
+#' @param logger_type Character. Type of logger used. Must be one of: \code{"U20_wl"}, \code{"U20_baro"}, \code{"U24_cond"}, or \code{"U26_do"}.
+#'
+#' @return A data frame of combined logger data, with a CSV file also written to \code{out_path}.
+#' @export
+#'
+#' @examples
+#' all_WL <- bind_hobo_files(
+#'   raw_path = here("Data", "water-level", "ST", "2025", "raw"),
+#'   out_path = here("Data", "water-level", "ST", "2025", "intermediate"),
+#'   meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20250411.csv"),
+#'   project_code = "DM",
+#'   logger_type = "U20_wl"
+#' )
 
 bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_type) {
   library(tidyverse)
   
-  # Read in the logger deployment file
-  metadat <- read_csv(meta_file) %>% 
+  # Read in the logger deployment file and check for column requirements
+  metadat <- read_csv(meta_file)
+  
+  ## Check for required columns
+  required_cols <- c("sn", "site_station_code", "timestamp_deploy", "timestamp_remove")
+  missing_cols <- setdiff(required_cols, names(metadat))
+  if (length(missing_cols) > 0) {
+    stop("The metadata file is missing the following required columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  ## Check for site_station_code format
+  valid_ssc <- grepl("^[^_]+_[^_]+_[^_]+$", metadat$site_station_code)
+  if (any(!valid_ssc)) {
+    bad_ssc <- unique(metadat$site_station_code[!valid_ssc])
+    stop("Invalid format in 'site_station_code' column. Expected format is 'siteName_siteType_stationNum'. Problematic entries: ",
+         paste(bad_ssc, collapse = ", "))
+  }
+  
+  ## Format timestamps and create aux columns
+  metadat <- metadat %>% 
     mutate(timestamp_deploy = as.POSIXct(timestamp_deploy, format = "%m/%d/%Y %H:%M", tz = "UTC"),
            timestamp_remove = as.POSIXct(timestamp_remove, format = "%m/%d/%Y %H:%M", tz = "UTC"),
            sn = as.character(sn)) %>% 
     separate(site_station_code, into = c("site_name", "site_type", "station_num"), sep = "_", remove = FALSE)
   
-  ## Read in the raw logger data files
-  # Get all csv files in the raw data directory
+  # Read in the raw logger data files
+  ## Get all csv files in the raw data directory
   file_list <- list.files(path = raw_path, recursive = FALSE, full.names = TRUE, pattern = "\\.csv$") # extract file names ending in csv
   
   if (length(file_list) == 0) {
@@ -25,7 +63,7 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
   
   all_data <- data.frame()
   
-  # Loop through each csv file
+  ## Loop through each csv file
   for (file in file_list) {
     data <- read.csv(file, skip = 1, header = TRUE, stringsAsFactors = FALSE)
     
@@ -45,17 +83,16 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
     # Rename the columns based on the parameter as stated by the column 2 header
     read_col <- colnames(data)[2]
     
-    if (logger_type == "U20_waterlevel") {
+    if (logger_type == "U20_wl") {
       colnames(data) <- c("timestamp", "waterpress_kPa_U20", "watertemp_C_U20", "sn")
     } else if (logger_type == "U20_baro") {
       colnames(data) <- c("timestamp", "airpress_kPa_U20", "airtemp_C_U20", "sn")
-    } else if (logger_type == "U26_dissox") {
+    } else if (logger_type == "U26_do") {
       colnames(data) <- c("timestamp", "DO_mgL_U26", "watertemp_C_U26", "sn")
-    } else if (logger_type == "U24_conductivity") {
+    } else if (logger_type == "U24_cond") {
       colnames(data) <- c("timestamp", "conduct_uScm_U24", "watertemp_C_U24", "sn")
     } else {
-      print("Invalid logger type. Make sure to specify 'U20_waterlevel', 'U20_baro', 'U24_conductivity', or 'U26_dissox' to properly format column headers")
-      stop()
+      stop("Invalid logger type. Make sure to specify 'U20_wl', 'U20_baro', 'U24_cond', or 'U26_do' to properly format column headers")
     }
     
     # Remove rows with missing values (from logger messages)
@@ -146,37 +183,3 @@ bind_hobo_files <- function(raw_path, out_path, project_code, meta_file, logger_
   # Return the final data frame
   return(all_data)
 }
-
-
-# baro_press <- bind_hobo_files(raw_path = here("Data", "barometric-pressure", "2024", "raw"),
-#                               out_path = here("Data", "barometric-pressure", "2024", "intermediate"),
-#                               meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                               site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-# 
-# waterlev_ST <- bind_hobo_files(raw_path = here("Data", "water-level", "2024", "raw", "ST"),
-#                                out_path = here("Data", "water-level", "2024", "intermediate"),
-#                                meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                                site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-# 
-# waterlev_OC <- bind_hobo_files(raw_path = here("Data", "water-level", "2024", "raw", "OC"),
-#                                out_path = here("Data", "water-level", "2024", "intermediate"),
-#                                meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                                site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-# 
-# DO_ST <- bind_hobo_files(raw_path = here("Data", "dissolved-oxygen", "2024", "raw", "ST"),
-#                          out_path = here("Data", "dissolved-oxygen", "2024", "intermediate"),
-#                          meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                          site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-# 
-# DO_OC <- bind_hobo_files(raw_path = here("Data", "dissolved-oxygen", "2024", "raw", "OC"),
-#                          out_path = here("Data", "dissolved-oxygen", "2024", "intermediate"),
-#                          meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                          site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-# 
-# conductivity <- bind_hobo_files(raw_path = here("Data", "conductivity", "2024", "raw"),
-#                                 out_path = here("Data", "conductivity", "2024", "intermediate"),
-#                                 meta_file = here("Data", "site-attribute", "Deadman_logger_deployments_20241113.csv"),
-#                                 site_file = here("Data", "site-attribute", "Deadman_sites_20241112.csv"))
-
-
-
