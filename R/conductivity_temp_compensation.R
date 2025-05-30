@@ -1,5 +1,18 @@
-#' CONDUCTIVITY TEMPERATURE COMPENSATION (SPECIFIC CONDUCTANCE)
-#' 
+#' Conductivity Temperature Compensation
+#'
+#' Applies temperature correction to conductivity measurements to calculate specific conductance
+#' standardized at 25°C. Uses a non-linear temperature compensation method for natural waters,
+#' equivalent to ISO 7888.
+#'
+#' @param input_data Data frame. Contains the conductivity and temperature data.
+#' @param comp_file File path. Path to the temperature compensation table (e.g., 
+#'   \code{inst/extdata/tempcomp27888.csv}). This argument may be deprecated once the function is fully packaged,
+#'   as the compensation data should be accessed internally via \code{system.file()}.
+#' @param var_conduct_uScm Character. Name of the column containing conductivity values (in µS/cm).
+#' @param var_watertemp_C Character. Name of the column containing temperature values (in °C).
+#'
+#' @return A data frame with an additional column containing the corrected specific conductance.
+#' @export
 
 conduct_temp_comp <- function(input_data,
                               comp_file,
