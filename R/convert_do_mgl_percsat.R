@@ -1,15 +1,20 @@
-#' Dissolved oxygen conversion
+#' Dissolved Oxygen Saturation Conversion
 #'
-#' Convert dissolved oxygen from mg/L to percent air saturation
-#' @param input_data Dataframe of time series of dissolved oxygen in mg/L, temperature in degrees Celcius, and barometric pressure in kPa
-#' @param var_watertemp_C The variable for watertemperature in degrees Celcius
-#' @param  var_airpress_kPa The variable for barometric pressure in kPa
-#' @param  var_do_mgL The variable for dissolved oxygen in mg per litre
-#' @return output_data: data frame with dissolved oxygen in percent air saturation as a new column "do_percsat_U26"
-#' @examples 
-#' data("do.baro")
-#' site_do_baro <- convert_do_mgL_percsat(site_df = do.baro)
+#' Converts dissolved oxygen concentrations from mg/L to percent air saturation
+#' using water temperature and barometric pressure.
+#'
+#' @param input_data Data frame. Time series data containing dissolved oxygen (mg/L), 
+#'   water temperature (°C), and barometric pressure (kPa).
+#' @param var_watertemp_C Character. Name of the column containing water temperature values (°C).
+#' @param var_airpress_kPa Character. Name of the column containing barometric pressure values (kPa).
+#' @param var_do_mgL Character. Name of the column containing dissolved oxygen values (mg/L).
+#'
+#' @return A data frame with an additional column \code{DO_percsat} or \code{DO_percsat_U26} representing 
+#'   dissolved oxygen in percent air saturation.
 #' @export
+#'
+#' @examples
+#' DO_sat <- convert_DO_mgL_percsat(DO_baro)
 
 convert_DO_mgL_percsat <- function(input_data, var_watertemp_C = "watertemp_C_U26", var_airpress_kPa = "airpress_kPa_U20_adj", var_DO_mgL = "DO_mgL_U26") {
   #library(dplyr)
