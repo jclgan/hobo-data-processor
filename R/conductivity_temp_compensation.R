@@ -11,7 +11,7 @@
 #' @param var_conduct_uScm Character. Name of the column containing conductivity values (in µS/cm).
 #' @param var_watertemp_C Character. Name of the column containing temperature values (in °C).
 #'
-#' @return A data frame with an additional column containing the corrected specific conductance.
+#' @returns A data frame with an additional column containing the corrected specific conductance.
 #' @export
 #' 
 #' @examples

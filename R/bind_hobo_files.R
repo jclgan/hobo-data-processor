@@ -13,7 +13,7 @@
 #' @param project_code Character. Short code used to prefix the filename of the bound data (e.g., \code{"DM"}).
 #' @param logger_type Character. Type of logger used. Must be one of: \code{"U20_wl"}, \code{"U20_baro"}, \code{"U24_cond"}, or \code{"U26_do"}.
 #'
-#' @return A data frame of combined logger data, with a CSV file also written to \code{out_path}.
+#' @returns A data frame of combined logger data, with a CSV file also written to \code{out_path}.
 #' @export
 #'
 #' @examples
